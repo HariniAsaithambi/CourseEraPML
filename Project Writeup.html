@@ -1,0 +1,35 @@
+PML Project -Qualitative Activity Recognition of Weight Lifting Exercises
+
+
+
+#Step1: #reading training and testing files from the working directory
+
+#Step2 : Cleaning the training data 
+#Step2a: removing irrelevant variables
+#Step 2b:  Removing columns which has NA > 95% of the time  or "" values
+#step 2c: #Identifying and removing columns where variance is nearly 0 
+
+#Step 3 : Cleaning the test data by removing irrelevant variables, 
+
+#Step 4: Correlation analysis is done to see if PCA can be done. Since there is not much correlation PCA is skipped.
+
+#Step 5: Converting "Classe" variable as factor variable for smooth classification
+
+#Step 6: Data partition. Training data is split in the ratio of 60%:30%:10% . 
+Model training is done with the 60% of the data. Of the remaining 40%, I have split into 2 random Crossvalidation data sets.  Crossvalidation1(30%) ; CrossValidation2(10%)
+
+This helped me to double check on the out of sample  error for both the validation sets 
+
+
+#Step 7: 4 classification models are tried to check which gives the best fit
+- Accuracy and out of sample error was checked for each of the methods
+
+Method		Accuracy with Crossvalidation1		Accuracy with Crossvalidation2 
+RF 			99.81%								99.43%
+LDA			71.12%								69.79%
+GBM			98.5%								98.06%
+KNN			90.96%								91.43%
+
+For the Random Forest method, I didn't use caret package method as it was very time consuming. Instead, I have used the random Forest function directly. 
+For the Based on the above accuracy analysis, Random Forest method is decided as the best fit for the given problem .
+Since the Accuracy for RF method was >99%, I avoided using the stacked prediction model  
