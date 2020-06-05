@@ -1,0 +1,180 @@
+PML Project  #4/6/2020
+Loading required packages
+
+```{r }
+library(caret)
+library(kernlab)
+library(ggplot2)
+library(randomForest)
+library(forecast)
+library(e1071)
+library(gbm)
+library(parallel)
+library(doParallel)
+library(survival)
+library(splines)
+library(plyr)
+library(corrplot)
+```
+
+Step1: #reading training and testing files from the working directory
+training <- read.csv("pml-training.csv", na.strings=c("DIV/0!"), row.names = 1)
+testing <- read.csv("pml-testing.csv", na.strings=c("DIV/0!"), row.names = 1)
+Step2 : Cleaning the data 
+Step2a: Removing irrelevant variables
+training <- training[, -(1:5)] Removing the first 5 columns, as the data is not required for model
+dim(training) checking
+Step 2b:  Removing columns which has NA > 95% of the time  or "" values
+
+```{r }
+limit <- dim(training)[1] * 0.95 
+Valid <- !apply(training, 2, function(x) sum(is.na(x)) > limit  || sum(x=="") > limit)
+training <- training[, Valid]
+```
+
+dim(training) checking
+step 2c: #Identifying and removing columns where variance is nearly 0 
+
+```{r }
+zerovar <- nearZeroVar(training, saveMetrics = TRUE) 
+training <- training[, zerovar$nzv==FALSE]
+```
+
+dim(training) checking
+After variable reduction, the training set is left with 54 variables
+Step 3:#Preparing test data using steps similar to the training data
+
+```{r }
+testing  <- testing[, -(1:5)] 
+dim(testing)
+testing <- testing[, Valid]
+testing$classe <- NA
+testingData <- testing[, zerovar$nzv==FALSE]
+dim(testingData)
+```
+
+Step 4: Correlation analysis to see if PCA can be done. Since there is not much correlation PCA is skipped.
+
+```{r }
+corTrain<- cor(training[, -54])
+corrplot(corTrain, order = "hclust" , type = "upper",tl.cex = 0.2)
+```
+
+Step 5: Converting "Classe" variable as factor variable 
+
+```{r }
+training$classe = factor(training$classe)
+```
+
+Step 6: Data partition. trainingData (60%); Crossvalidation1(30%) ; CrossValidation2(10%)
+
+```{r }
+Trainingset <- createDataPartition(training$classe, p = 0.6)[[1]]
+trainingData <- training[Trainingset,]
+Crossvalidation1 <- training[-Trainingset,]
+dim(training); dim(Crossvalidation1);
+
+Trainingset <- createDataPartition(Crossvalidation1$classe, p = 0.75)[[1]]
+Crossvalidation2 <- Crossvalidation1[ -Trainingset,]
+Crossvalidation1 <- Crossvalidation1[Trainingset,]
+dim(training); dim(Crossvalidation1);  dim(Crossvalidation2)
+
+trainingData$classe = factor(trainingData$classe)
+Crossvalidation1$classe = factor(Crossvalidation1$classe)
+Crossvalidation2$classe = factor(Crossvalidation2$classe)
+
+
+set.seed(123)
+```
+
+Step7:#Train with 4 different models: RandomForest, LDA, GBM and KNN
+For the Random Forest method, I didn't use caret package method as it was very time consuming. Instead, I have used the Random Forest function directly. 
+For cross validation, I have used a simple data portioning method to create 2 validation sets and tested the accuracy twice. 
+ Accuracy and Out of Sample error is checked for all the 4 methods
+MODEL 1: RandomForest
+Training using the function randomForest()
+
+```{r }
+fit <- randomForest(classe ~ ., data = trainingData)
+```
+
+Crossvalidation1 prediction
+
+```{r }
+pred1 <- predict(fit, Crossvalidation1)  
+```
+
+Out-of-sample Crossvalidation1 accuracy is 99.63%, Out of Sample Error is 0.39%
+
+```{r }
+confusionMatrix(pred1, Crossvalidation1$classe)
+```
+
+Crossvalidation2 prediction
+
+```{r }
+Crosspred <- predict(fit, Crossvalidation2)
+```
+
+Out-of-sample Crossvalidation2 accuracy is 99.69%, Out of Sample Error is 0.31%
+
+```{r }
+confusionMatrix(Crosspred, Crossvalidation2$classe)
+```
+
+checking with final test data 
+
+```{r }
+testPred1<-predict(fit, testingData)  
+```
+
+MODEL 2: Linear Discriminant Analysis
+fit2<-train(classe ~ ., data=trainingData, method="lda") 70.69% accuracy
+
+```{r }
+pred2 <- predict(fit2, Crossvalidation1)  
+```
+
+confusionMatrix(pred2, Crossvalidation1$classe) crossvalidation1 accuracy is 71.12#
+
+```{r }
+Crosspred2 <- predict(fit2, Crossvalidation2)
+```
+
+confusionMatrix(Crosspred2, Crossvalidation2$classe)crossvalidation2  accuracy is 69.8%
+AccuracyLDA <- sum(Crosspred2 == Crossvalidation2$classe) / length(Crosspred2) Accuracy = 69.79%
+testPred2<-predict(fit2, testingData) checking with final test data 
+MODEL 3: Generalized Boosted Regression Modeling
+
+```{r }
+fit3<-train(classe ~ ., data=trainingData, method="gbm") 
+pred3 <- predict(fit3, Crossvalidation1)   
+```
+
+confusionMatrix(pred3, Crossvalidation1$classe)crossvalidation1 accuracy is #98.5% 
+
+```{r }
+Crosspred3 <- predict(fit3, Crossvalidation2)
+```
+
+confusionMatrix(Crosspred3, Crossvalidation2$classe)crossvalidation2 #accuracy is 98.06%
+AccuracyGBM <- sum(Crosspred3 == Crossvalidation2$classe) / length(Crosspred3) Accuracy = 98.06%
+testPred3<-predict(fit3, testingData) checking with final test data 
+MODEL 4: K nearest neighbours
+fit4<-train(classe ~ ., data=trainingData, method="knn")  90.96% accuracy
+
+```{r }
+pred4 <- predict(fit4, Crossvalidation1)  
+```
+
+confusionMatrix(pred4, Crossvalidation1$classe) crossvalidation1 accuracy is 90.96%
+
+```{r }
+Crosspred4 <- predict(fit4, Crossvalidation2)
+```
+
+confusionMatrix(Crosspred4, Crossvalidation2$classe) crossvalidation2 #  accuracy is 91.43%
+Accuracyknn <- sum(Crosspred4 == Crossvalidation2$classe) / length(Crosspred4) Accuracy = 91.43%
+testPred4<-predict(fit4, testingData) checking with final test data  
+Based on the above accuracy analysis, Random Forest method is decided as the best fit for the given problem .
+Since the Accuracy for RF method was >99.5%, I avoided using the stacked prediction model  
